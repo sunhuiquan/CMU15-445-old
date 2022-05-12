@@ -190,4 +190,61 @@ TEST(StarterTest, MultiplicationTest) {
     }
   }
 }
+
+/** Test that matrix GEEM works as expected */
+TEST(StarterTest, GEEMTest) {
+  const std::vector<int> source0{1, 2, 3, 4, 5, 6};
+  auto matrix0 = std::make_unique<RowMatrix<int>>(2, 3);
+  matrix0->FillFrom(source0);
+  for (int i = 0; i < matrix0->GetRowCount(); i++) {
+    for (int j = 0; j < matrix0->GetColumnCount(); j++) {
+      EXPECT_EQ(source0[i * matrix0->GetColumnCount() + j], matrix0->GetElement(i, j));
+    }
+  }
+
+  auto matrix1 = std::make_unique<RowMatrix<int>>(3, 2);
+  const std::vector<int> source1{-2, 1, -2, 2, 2, 3};
+  matrix1->FillFrom(source1);
+  for (int i = 0; i < matrix1->GetRowCount(); i++) {
+    for (int j = 0; j < matrix1->GetColumnCount(); j++) {
+      EXPECT_EQ(source1[i * matrix1->GetColumnCount() + j], matrix1->GetElement(i, j));
+    }
+  }
+
+  // The expected result of multiplication
+  const std::vector<int> expected{0, 14, -6, 32};
+
+  // Perform the multiplication operation
+  auto product = RowMatrixOperations<int>::Multiply(matrix0.get(), matrix1.get());
+
+  // (2,3) * (3,2) -> (2,2)
+  EXPECT_EQ(2, product->GetRowCount());
+  EXPECT_EQ(2, product->GetColumnCount());
+
+  for (int i = 0; i < product->GetRowCount(); i++) {
+    for (int j = 0; j < product->GetColumnCount(); j++) {
+      EXPECT_EQ(expected[i * product->GetColumnCount() + j], product->GetElement(i, j));
+    }
+  }
+
+  auto matrix2 = std::make_unique<RowMatrix<int>>(2, 2);
+  const std::vector<int> source2{1, 2, 3, 4};
+  matrix2->FillFrom(source2);
+  for (int i = 0; i < matrix2->GetRowCount(); i++) {
+    for (int j = 0; j < matrix2->GetColumnCount(); j++) {
+      EXPECT_EQ(source2[i * matrix2->GetColumnCount() + j], matrix2->GetElement(i, j));
+    }
+  }
+  const std::vector<int> expected1{1, 16, -3, 36};  // matrix0 * matrix1 + matrix2
+
+  auto product1 = RowMatrixOperations<int>::GEMM(matrix0.get(), matrix1.get(), matrix2.get());
+
+  EXPECT_EQ(2, product1->GetRowCount());
+  EXPECT_EQ(2, product1->GetColumnCount());
+  for (int i = 0; i < product1->GetRowCount(); i++) {
+    for (int j = 0; j < product1->GetColumnCount(); j++) {
+      EXPECT_EQ(expected1[i * product1->GetColumnCount() + j], product1->GetElement(i, j));
+    }
+  }
+}
 }  // namespace bustub

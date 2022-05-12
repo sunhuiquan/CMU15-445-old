@@ -196,7 +196,7 @@ class RowMatrix : public Matrix<T> {
    */
   ~RowMatrix() override {
     for (int i = 0; i < this->rows_; ++i) {
-      delete data_[i];
+      delete[] data_[i];
     }
     delete[] data_;
   }
@@ -286,7 +286,7 @@ class RowMatrixOperations {
     if (p == nullptr) {
       return std::unique_ptr<RowMatrix<T>>(nullptr);
     }
-    return RowMatrixOperations::Add(p, matrixC);
+    return RowMatrixOperations::Add(p.get(), matrixC);
   }
 };
 }  // namespace bustub
