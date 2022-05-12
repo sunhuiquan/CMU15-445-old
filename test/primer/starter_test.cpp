@@ -155,7 +155,7 @@ TEST(StarterTest, AdditionTest) {
 }
 
 /** Test that matrix multiplication works as expected */
-TEST(StarterTest, DISABLED_MultiplicationTest) {
+TEST(StarterTest, MultiplicationTest) {
   const std::vector<int> source0{1, 2, 3, 4, 5, 6};
   auto matrix0 = std::make_unique<RowMatrix<int>>(2, 3);
   matrix0->FillFrom(source0);

@@ -251,7 +251,21 @@ class RowMatrixOperations {
    */
   static std::unique_ptr<RowMatrix<T>> Multiply(const RowMatrix<T> *matrixA, const RowMatrix<T> *matrixB) {
     // TODO(P0): Add implementation
-    return std::unique_ptr<RowMatrix<T>>(nullptr);
+    if (matrixA->GetColumnCount() != matrixB->GetRowCount()) {
+      return std::unique_ptr<RowMatrix<T>>(nullptr);
+    }
+    int r = matrixA->GetRowCount(), c = matrixB->GetColumnCount(), n = matrixA->GetColumnCount();
+    std::unique_ptr<RowMatrix<T>> p(new RowMatrix<T>(r, c));
+    for (int i = 0; i < r; ++i) {
+      for (int j = 0; j < c; ++j) {
+        int val = 0;
+        for (int a = 0; a < n; ++a) {
+          val += matrixA->GetElement(i, a) * matrixB->GetElement(a, j);
+        }
+        p->SetElement(i, j, val);
+      }
+    }
+    return p;
   }
 
   /**
@@ -265,7 +279,11 @@ class RowMatrixOperations {
   static std::unique_ptr<RowMatrix<T>> GEMM(const RowMatrix<T> *matrixA, const RowMatrix<T> *matrixB,
                                             const RowMatrix<T> *matrixC) {
     // TODO(P0): Add implementation
-    return std::unique_ptr<RowMatrix<T>>(nullptr);
+    auto p = RowMatrixOperations::Multiply(matrixA, matrixB);
+    if (p == nullptr) {
+      return std::unique_ptr<RowMatrix<T>>(nullptr);
+    }
+    return RowMatrixOperations::Add(p, matrixC);
   }
 };
 }  // namespace bustub
