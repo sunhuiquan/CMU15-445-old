@@ -192,7 +192,7 @@ TEST(StarterTest, MultiplicationTest) {
 }
 
 /** Test that matrix GEEM works as expected */
-TEST(StarterTest, GEEMTest) {
+TEST(StarterTest, GEMMTest) {
   const std::vector<int> source0{1, 2, 3, 4, 5, 6};
   auto matrix0 = std::make_unique<RowMatrix<int>>(2, 3);
   matrix0->FillFrom(source0);

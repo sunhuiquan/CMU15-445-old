@@ -1,151 +1,43 @@
-<img src="logo/bustub-whiteborder.svg" alt="BusTub Logo" height="200">
+# Project 0 C++ Primer
 
------------------
+### 实现
 
-[![Build Status](https://travis-ci.org/cmu-db/bustub.svg?branch=master)](https://travis-ci.org/cmu-db/bustub)
-[![CircleCI](https://circleci.com/gh/cmu-db/bustub/tree/master.svg?style=svg)](https://circleci.com/gh/cmu-db/bustub/tree/master)
+1. Matrix 是一个矩阵抽象类，里面的 rows_ 和 cols_ 就是行数和列数，我们要用一维的 T* linear_ 放下这个二维矩阵，很显然这个和我们刷力扣经常用到的一维数组表示二维数组一样，就是 linear_\[i * cols_ + j\] 表示 matrix\[i\]\[j\]。
+2. RowMatrix 继承了 Matrix，然后实现各种基本矩阵的函数。
+3. RowMatrixOperations 是一个针对 RowMatrix 的矩阵操作类，里面都是静态的对 RowMatrix 操作的方法。
+4. 特别注意 T** data_ 的分配和释放，注意 new 先给 data_ 分配 T* 数组，之后给 data\[i\] 分配 T 数组，注意无论是 data_(T* 数组)还是 data_\[i\](T 数组)，它们都是数组，都是通过 new \[\] 分配的，所以都要 delete \[\] 释放。
+	```C++
+  	RowMatrix(int rows, int cols) : Matrix<T>(rows, cols) {
+    	data_ = new T *[rows];
+    	for (int i = 0; i < rows; ++i) {
+      		data_[i] = new T[cols];
+   		}
+  	}
 
-BusTub is a relational database management system built at [Carnegie Mellon University](https://db.cs.cmu.edu) for the [Introduction to Database Systems](https://15445.courses.cs.cmu.edu) (15-445/645) course. This system was developed for educational purposes and should not be used in production environments.
+  	~RowMatrix() override {
+    	for (int i = 0; i < this->rows_; ++i) {
+      		delete[] data_[i];
+    	}
+    	delete[] data_;
+  	}
+	```
 
-**WARNING: IF YOU ARE A STUDENT IN THE CLASS, DO NOT DIRECTLY FORK THIS REPO. DO NOT PUSH PROJECT SOLUTIONS PUBLICLY. THIS IS AN ACADEMIC INTEGRITY VIOLATION AND CAN LEAD TO GETTING YOUR DEGREE REVOKED, EVEN AFTER YOU GRADUATE.**
+### 其他
 
-## Cloning this Repository
+1. 如果 gradescope 出现 Test Failed: False is not true : Test was not run. 
+   - 可能是格式错误，使用如下指令检查格式错误。
+		```bash
+		make format
+		make check-lint
+		make check-clang-tidy
+		```
+   - 如果 test_build 开头告诉你 File not found in submission: src/include/primer/p0_starter.h 错误，这说明你没有按指定格式提交代码，要求你需要把 src/include/primer/ 这个层级目录也压缩，gradescope 才能找到你的文件。
+   - 你可以在 test_build 测试里面复制里面的信息搜 error: 来找到底哪里出错了，这是因为本地的测试不全，有些类函数没用到所以没有编译不会报错，可能那些类函数编译错误了。
+2. 因为本地测试没有测试 GEMM 函数，你可以加几个测试，如 TEST(StarterTest, GEMMTest) { // 测试代码 }
+3. 默认是 DISABLED 测试的，你需要把 test 对应测试文件(/test/primer/starter_test.cpp)里面形如 TEST(StarterTest, DISABLED_InitializationTest) 去掉 DISABLED_ 变成 TEST(StarterTest, InitializationTest) 才能开启该测试函数。
 
-The following instructions are adapted from the Github documentation on [duplicating a repository](https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/duplicating-a-repository). The procedure below walks you through creating a private BusTub repository that you can use for development.
+![IMG](./test0.png)
 
-1. Go [here](https://github.com/new) to create a new repository under your account. Pick a name (e.g. `bustub-private`) and select **Private** for the repository visibility level.
-2. On your development machine, create a bare clone of the public BusTub repository:
-   ```
-   $ git clone --bare https://github.com/cmu-db/bustub.git bustub-public
-   ```
-3. Next, [mirror](https://git-scm.com/docs/git-push#Documentation/git-push.txt---mirror) the public BusTub repository to your own private BusTub repository. Suppose your GitHub name is `student` and your repository name is `bustub-private`. The procedure for mirroring the repository is then:
-   ```
-   $ cd bustub-public
-   
-   # If you pull / push over HTTPS
-   $ git push --mirror https://github.com/student/bustub-private.git
+里面第六个 GEMMTest 是我自己加的本地测试。
 
-   # If you pull / push over SSH
-   $ git push --mirror git@github.com:student/bustub-private.git
-   ```
-   This copies everything in the public BusTub repository to your own private repository. You can now delete your local clone of the public repository:
-   ```
-   $ cd ..
-   $ rm -rf bustub-public
-   ```
-4. Clone your private repository to your development machine:
-   ```
-   # If you pull / push over HTTPS
-   $ git clone https://github.com/student/bustub-private.git
-
-   # If you pull / push over SSH
-   $ git clone git@github.com:student/bustub-private.git
-   ```
-5. Add the public BusTub repository as a second remote. This allows you to retrieve changes from the CMU-DB repository and merge them with your solution throughout the semester:
-   ```
-   $ git remote add public https://github.com/cmu-db/bustub.git
-   ```
-   You can verify that the remote was added with the following command:
-   ```
-   $ git remote -v
-   origin	https://github.com/student/bustub-private.git (fetch)
-   origin	https://github.com/student/bustub-private.git (push)
-   public	https://github.com/cmu-db/bustub.git (fetch)
-   public	https://github.com/cmu-db/bustub.git (push)
-   ```
-6. You can now pull in changes from the public BusTub repository as needed with:
-   ```
-   $ git pull public master
-   ```
-
-We suggest working on your projects in separate branches. If you do not understand how Git branches work, [learn how](https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging). If you fail to do this, you might lose all your work at some point in the semester, and nobody will be able to help you.
-
-## Build
-
-### Linux / Mac
-
-To ensure that you have the proper packages on your machine, run the following script to automatically install them:
-
-```
-$ sudo build_support/packages.sh
-```
-
-Then run the following commands to build the system:
-
-```
-$ mkdir build
-$ cd build
-$ cmake ..
-$ make
-```
-
-If you want to compile the system in debug mode, pass in the following flag to cmake:
-Debug mode:
-
-```
-$ cmake -DCMAKE_BUILD_TYPE=Debug ..
-$ make
-```
-This enables [AddressSanitizer](https://github.com/google/sanitizers), which can generate false positives for overflow on STL containers. If you encounter this, define the environment variable `ASAN_OPTIONS=detect_container_overflow=0`.
-
-### Windows
-
-If you are using Windows 10, you can use the Windows Subsystem for Linux (WSL) to develop, build, and test Bustub. All you need is to [Install WSL](https://docs.microsoft.com/en-us/windows/wsl/install-win10). You can just choose "Ubuntu" (no specific version) in Microsoft Store. Then, enter WSL and follow the above instructions.
-
-If you are using CLion, it also [works with WSL](https://blog.jetbrains.com/clion/2018/01/clion-and-linux-toolchain-on-windows-are-now-friends).
-
-## Testing
-
-```
-$ cd build
-$ make check-tests
-```
-
-## Build environment
-
-If you have trouble getting cmake or make to run, an easy solution is to create a virtual container to build in. There are two options available:
-
-### Vagrant
-
-First, make sure you have Vagrant and Virtualbox installed
-```
-$ sudo apt update
-$ sudo apt install vagrant virtualbox
-```
-
-From the repository directory, run this command to create and start a Vagrant box:
-
-```
-$ vagrant up
-```
-
-This will start a Vagrant box running Ubuntu 20.02 in the background with all the packages needed. To access it, type
-
-```
-$ vagrant ssh
-```
-
-to open a shell within the box. You can find Bustub's code mounted at `/bustub` and run the commands mentioned above like normal.
-
-### Docker
-
-First, make sure that you have docker installed:
-```
-$ sudo apt update
-$ sudo apt install docker
-```
-
-From the repository directory, run these commands to create a Docker image and container:
-
-```
-$ docker build . -t bustub
-$ docker create -t -i --name bustub -v $(pwd):/bustub bustub bash
-```
-
-This will create a Docker image and container. To run it, type:
-
-```
-$ docker start -a -i bustub
-```
-
-to open a shell within the box. You can find Bustub's code mounted at `/bustub` and run the commands mentioned above like normal.
+![IMG](./project0.png)
