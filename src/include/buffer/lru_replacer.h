@@ -48,9 +48,10 @@ class LRUReplacer : public Replacer {
   size_t Size() override;
 
  private:
-  std::list<std::pair<int32_t, bool>> id_list_;
-  std::unordered_map<int32_t, std::pair<int, bool> &> id_map_;
-  int replacer_size_;
+  std::list<int> id_list_;
+  std::unordered_map<int32_t, int &> id_map_;
+  int num_pages_;
+  int max_pages_;
 };
 
 }  // namespace bustub

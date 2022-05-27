@@ -14,49 +14,36 @@
 
 namespace bustub {
 
-LRUReplacer::LRUReplacer(size_t num_pages) { replacer_size_ = num_pages; }
+LRUReplacer::LRUReplacer(size_t num_pages) { max_pages_ = num_pages; }
 
 LRUReplacer::~LRUReplacer() = default;
 
 bool LRUReplacer::Victim(frame_id_t *frame_id) {
-  auto end = id_list_.crend();
-  for (auto it = id_list_.crbegin(); it != end; ++it) {
-    if (it->second == false) {
-      *frame_id = it->first;
-      return true;
-    }
+  if (id_list_.empty()) {
+    return false;
   }
-  return false;
+  *frame_id = id_list_.back();
+  id_list_.remove(*frame_id);
+  id_map_.erase(*frame_id);
+  return true;
 }
 
 void LRUReplacer::Pin(frame_id_t frame_id) {
-  // ???
-  if (!id_map_.count(frame_id)) {
-    id_list_.push_front(std::pair<int, bool>{frame_id, true});
-    id_map_[frame_id] = id_list_.front();
-    ++replacer_size_;
-  } else {
-    id_list_.remove(id_map_[frame_id]);
-    id_list_.push_front(std::pair<int, bool>{frame_id, true});
-    id_map_[frame_id] = id_list_.front();
+  if (id_map_.count(frame_id)) {
+    id_list_.remove(frame_id);
+    id_map_.erase(frame_id);
   }
 }
 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
-  if (id_map_.count(frame_id)) {
-    id_map_[frame_id].second = false;
+  if (num_pages_ == max_pages_) return;  // todo: replacer is already full
+  if (!id_map_.count(frame_id)) {
+    id_list_.push_front(frame_id);
+    id_map_[frame_id] = id_list_.front();
+    ++num_pages_;
   }
 }
 
-size_t LRUReplacer::Size() {
-  int count = 0;
-  auto end = id_list_.crend();
-  for (auto it = id_list_.crbegin(); it != end; ++it) {
-    if (it->second == false) {
-      ++count;
-    }
-  }
-  return count;
-}
+size_t LRUReplacer::Size() { return id_list_.size(); }
 
 }  // namespace bustub
