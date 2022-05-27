@@ -77,26 +77,23 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   frame_id_t frame_id = -1;
   for (const frame_id_t i : free_list_) {
     frame_id = i;
+    free_list_.remove(i);
     break;
   }
-  if (frame_id == -1 && !replacer_->Victim(&frame_id)) {
-    return nullptr;
+  if (frame_id == -1) {
+    if (!replacer_->Victim(&frame_id))
+      return nullptr;
+    else {
+      if (pages_[frame_id].IsDirty()) {
+        disk_manager_->WritePage(pages_[frame_id].GetPageId(), pages_[frame_id].GetData());
+      }
+    }
   }
+
+  // todo: 清空
 
   *page_id = AllocatePage();
   page_table_[*page_id] = frame_id;
-
-  //     /** Zeroes out the data that is held within the page. */
-  //   inline void ResetMemory() { memset(data_, OFFSET_PAGE_START, PAGE_SIZE); }
-
-  //   /** The actual data that is stored within a page. */
-  //   char data_[PAGE_SIZE]{};
-  //   /** The ID of this page. */
-  //   page_id_t page_id_ = INVALID_PAGE_ID;
-  //   /** The pin count of this page. */
-  //   int pin_count_ = 0;
-  //   /** True if the page is dirty, i.e. it is different from its corresponding page on disk. */
-  //   bool is_dirty_ = false;
 
   return &pages_[frame_id];
 }
@@ -117,22 +114,9 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
     return &pages_[page_table_[page_id]];
   }
 
-  frame_id_t frame_id = -1;
-  for (const frame_id_t i : free_list_) {
-    frame_id = i;
-    break;
-  }
-  if (frame_id == -1 && !replacer_->Victim(&frame_id)) {
-    return nullptr;
-  }
-  if (pages_[page_table_[page_id]].IsDirty()) {
-    disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
-  }
-
   page_id_t new_page_id;
-  Page *new_page = NewPgImp(&page_id);
+  Page *new_page = NewPgImp(&new_page_id);
   if (!new_page) return nullptr;
-
   disk_manager_->ReadPage(new_page_id, new_page->GetData());
   return new_page;
 }
@@ -143,6 +127,15 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   // 1.   If P does not exist, return true.
   // 2.   If P exists, but has a non-zero pin-count, return false. Someone is using the page.
   // 3.   Otherwise, P can be deleted. Remove P from the page table, reset its metadata and return it to the free list.
+
+  DeallocatePage(page_id);
+  if (page_table_.find(page_id) == page_table_.end()) return true;
+  Page *page = &pages_[page_table_[page_id]];
+  if (page->GetPinCount() != 0) return false;
+
+  free_list_.push_back(page_table_[page_id]);
+  page_table_[page_id] = INVALID_PAGE_ID;
+
   return false;
 }
 
