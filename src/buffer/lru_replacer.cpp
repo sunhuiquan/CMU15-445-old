@@ -12,8 +12,6 @@
 
 #include "buffer/lru_replacer.h"
 
-#include <iostream>
-
 namespace bustub {
 
 LRUReplacer::LRUReplacer(size_t num_pages) { max_pages_ = num_pages; }
@@ -49,21 +47,14 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
     replacer_mutex_.unlock();
     return;
   }
-  std::cout << "unpin:" << frame_id << std::endl;
 
   if (!id_map_.count(frame_id)) {
     id_list_.push_front(frame_id);
-    std::cout << "unpin:" << frame_id << " " << id_list_.size() << std::endl;
     id_map_[frame_id] = id_list_.cbegin();
   }
   replacer_mutex_.unlock();
 }
 
-size_t LRUReplacer::Size() {
-  //   replacer_mutex_.lock();
-  int sz = id_list_.size();
-  //   replacer_mutex_.unlock();
-  return sz;
-}
+size_t LRUReplacer::Size() { return id_list_.size(); }
 
 }  // namespace bustub
