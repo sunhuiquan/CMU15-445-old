@@ -12,6 +12,8 @@
 
 #include "buffer/lru_replacer.h"
 
+#include <iostream>
+
 namespace bustub {
 
 LRUReplacer::LRUReplacer(size_t num_pages) { max_pages_ = num_pages; }
@@ -19,41 +21,42 @@ LRUReplacer::LRUReplacer(size_t num_pages) { max_pages_ = num_pages; }
 LRUReplacer::~LRUReplacer() = default;
 
 bool LRUReplacer::Victim(frame_id_t *frame_id) {
-  //   replacer_mutex_.lock();
+  replacer_mutex_.lock();
   if (id_list_.empty()) {
-    // replacer_mutex_.unlock();
+    replacer_mutex_.unlock();
     return false;
   }
 
   *frame_id = id_list_.back();
   id_list_.erase(id_map_[*frame_id]);
   id_map_.erase(*frame_id);
-  //   replacer_mutex_.unlock();
+  replacer_mutex_.unlock();
   return true;
 }
 
 void LRUReplacer::Pin(frame_id_t frame_id) {
-  //   replacer_mutex_.lock();
+  replacer_mutex_.lock();
   if (id_map_.count(frame_id)) {
     id_list_.erase(id_map_[frame_id]);
     id_map_.erase(frame_id);
   }
-  //   replacer_mutex_.unlock();
+  replacer_mutex_.unlock();
 }
 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
-  //   replacer_mutex_.lock();
-  if (num_pages_ == max_pages_) {  // todo: replacer is already full
-    // replacer_mutex_.unlock();
+  replacer_mutex_.lock();
+  if ((int)Size() == max_pages_) {  // todo: replacer is already full
+    replacer_mutex_.unlock();
     return;
   }
+  std::cout << "unpin:" << frame_id << std::endl;
 
   if (!id_map_.count(frame_id)) {
     id_list_.push_front(frame_id);
+    std::cout << "unpin:" << frame_id << " " << id_list_.size() << std::endl;
     id_map_[frame_id] = id_list_.cbegin();
-    ++num_pages_;
   }
-  //   replacer_mutex_.unlock();
+  replacer_mutex_.unlock();
 }
 
 size_t LRUReplacer::Size() {

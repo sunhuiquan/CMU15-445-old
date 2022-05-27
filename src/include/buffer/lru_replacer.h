@@ -51,9 +51,9 @@ class LRUReplacer : public Replacer {
  private:
   std::list<frame_id_t> id_list_;
   std::unordered_map<frame_id_t, std::list<frame_id_t>::const_iterator> id_map_;
-  int num_pages_;
+  //   std::unordered_map<frame_id_t, int32_t> id_map_;
   int max_pages_;
-  //   std::mutex replacer_mutex_;
+  std::mutex replacer_mutex_;
 };
 
 }  // namespace bustub
