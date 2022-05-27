@@ -49,11 +49,22 @@ BufferPoolManagerInstance::~BufferPoolManagerInstance() {
 
 bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
-  return false;
+  if (page_id == INVALID_PAGE_ID || page_table_.find(page_id) == page_table_.end())
+    return false;                                                     // 无效 page_id 或未在 page_table_ 中跟踪
+  if (pages_[page_table_[page_id]].GetPinCount() != 0) return false;  // 确保不是 Pin 状态
+
+  if (pages_[page_table_[page_id]].IsDirty()) {  // 脏页，写回磁盘
+    disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
+  }
+  page_table_[page_id] = INVALID_PAGE_ID;  // 设置未使用标志
+  return true;
 }
 
 void BufferPoolManagerInstance::FlushAllPgsImp() {
   // You can do it!
+  for (const auto &p : page_table_) {
+    FlushPgImp(p.first);
+  }
 }
 
 Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
@@ -62,7 +73,20 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
-  return nullptr;
+
+  frame_id_t frame_id = -1;
+  for (const frame_id_t i : free_list_) {
+    frame_id = i;
+    break;
+  }
+  if (frame_id == -1 && !replacer_->Victim(&frame_id)) {
+    return nullptr;
+  }
+
+  *page_id = AllocatePage();
+  page_table_[*page_id] = frame_id;
+
+  return &pages_[frame_id];
 }
 
 Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
