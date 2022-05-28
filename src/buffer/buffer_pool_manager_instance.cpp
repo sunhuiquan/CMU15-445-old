@@ -14,8 +14,6 @@
 
 #include "common/macros.h"
 
-#include "common/logger.h"  // d (debug notice)
-
 namespace bustub {
 
 BufferPoolManagerInstance::BufferPoolManagerInstance(size_t pool_size, DiskManager *disk_manager,
@@ -51,12 +49,12 @@ BufferPoolManagerInstance::~BufferPoolManagerInstance() {
 
 bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
+
   if (page_id == INVALID_PAGE_ID || page_table_.find(page_id) == page_table_.end())
-    return false;                                // 无效 page_id 或未在 page_table_ 中跟踪
-  if (pages_[page_table_[page_id]].IsDirty()) {  // 脏页，写回磁盘
+    return false;  // 无效 page_id 或未在 page_table_ 中跟踪
+
+  if (pages_[page_table_[page_id]].IsDirty())  // 脏页，写回磁盘
     disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
-  }
-  page_table_[page_id] = INVALID_PAGE_ID;  // 设置未使用标志
   return true;
 }
 
@@ -84,6 +82,8 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
     if (!replacer_->Victim(&frame_id))
       return nullptr;
     else {
+      LOG_DEBUG("pagetable: %d\n", pages_[frame_id].GetPageId());
+      page_table_.erase(pages_[frame_id].GetPageId());
       if (pages_[frame_id].IsDirty()) {
         disk_manager_->WritePage(pages_[frame_id].GetPageId(), pages_[frame_id].GetData());
       }
@@ -115,10 +115,12 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
     return &pages_[page_table_[page_id]];
   }
 
+  //   LOG_DEBUG("fetch page_id: %d\n", page_id);
+
   page_id_t new_page_id;
   Page *new_page = NewPgImp(&new_page_id);  // 这里面已经 IncreasePinCount，因为单纯的 NewPage 也要 Pin，避免 Pin 两次
   if (!new_page) return nullptr;
-  disk_manager_->ReadPage(new_page_id, new_page->GetData());
+  disk_manager_->ReadPage(page_id, new_page->GetData());
 
   return new_page;
 }
@@ -138,7 +140,7 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
     disk_manager_->WritePage(pages_[page_table_[page_id]].GetPageId(), pages_[page_table_[page_id]].GetData());
 
   free_list_.push_back(page_table_[page_id]);
-  page_table_[page_id] = INVALID_PAGE_ID;
+  page_table_.erase(page_id);
 
   // 不用清空，因为 NewPgImp 新分配时会自动清空
 
@@ -147,6 +149,7 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
 }
 
 bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
+  if (page_table_.find(page_id) == page_table_.end()) return true;
   Page &page = pages_[page_table_[page_id]];
   if (page.GetPinCount() <= 0) return false;
 
