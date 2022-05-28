@@ -43,7 +43,7 @@ void LRUReplacer::Pin(frame_id_t frame_id) {
 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
   replacer_mutex_.lock();
-  if ((int)Size() == max_pages_) {  // todo: replacer is already full
+  if (Size() == max_pages_) {  // replacer 已满
     int id = id_list_.back();
     id_list_.erase(id_map_[id]);
     id_map_.erase(id);

@@ -50,9 +50,7 @@ BufferPoolManagerInstance::~BufferPoolManagerInstance() {
 bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
   if (page_id == INVALID_PAGE_ID || page_table_.find(page_id) == page_table_.end())
-    return false;                                                     // 无效 page_id 或未在 page_table_ 中跟踪
-  if (pages_[page_table_[page_id]].GetPinCount() != 0) return false;  // 确保不是 Pin 状态
-
+    return false;                                // 无效 page_id 或未在 page_table_ 中跟踪
   if (pages_[page_table_[page_id]].IsDirty()) {  // 脏页，写回磁盘
     disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
   }
@@ -89,12 +87,10 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
       }
     }
   }
-
-  // todo: 清空
-
-  *page_id = AllocatePage();
+  pages_[frame_id].ClearPage();  // 初始化清零
+  *page_id = AllocatePage();     // 获取 page_id
   page_table_[*page_id] = frame_id;
-
+  pages_[frame_id].page_id_ = *page_id;
   return &pages_[frame_id];
 }
 
@@ -111,13 +107,16 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
 
   if (page_table_.find(page_id) != page_table_.end()) {
     replacer_->Pin(page_table_[page_id]);
+    pages_[page_table_[page_id]].IncreasePinCount();
     return &pages_[page_table_[page_id]];
   }
 
   page_id_t new_page_id;
   Page *new_page = NewPgImp(&new_page_id);
   if (!new_page) return nullptr;
+  new_page->IncreasePinCount();
   disk_manager_->ReadPage(new_page_id, new_page->GetData());
+
   return new_page;
 }
 
@@ -128,18 +127,31 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   // 2.   If P exists, but has a non-zero pin-count, return false. Someone is using the page.
   // 3.   Otherwise, P can be deleted. Remove P from the page table, reset its metadata and return it to the free list.
 
-  DeallocatePage(page_id);
   if (page_table_.find(page_id) == page_table_.end()) return true;
-  Page *page = &pages_[page_table_[page_id]];
-  if (page->GetPinCount() != 0) return false;
+  Page &page = pages_[page_table_[page_id]];
+  if (page.GetPinCount() != 0) return false;
+
+  if (pages_[page_table_[page_id]].IsDirty())
+    disk_manager_->WritePage(pages_[page_table_[page_id]].GetPageId(), pages_[page_table_[page_id]].GetData());
 
   free_list_.push_back(page_table_[page_id]);
   page_table_[page_id] = INVALID_PAGE_ID;
 
-  return false;
+  // 不用清空，因为 NewPgImp 新分配时会自动清空
+
+  DeallocatePage(page_id);
+  return true;
 }
 
-bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) { return false; }
+bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
+  Page &page = pages_[page_table_[page_id]];
+  if (page.GetPinCount() <= 0) return false;
+
+  page.DecreasePinCount();
+  if (is_dirty) page.SetDirty();
+  if (!page.GetPinCount()) replacer_->Unpin(page_table_[page_id]);
+  return true;
+}
 
 page_id_t BufferPoolManagerInstance::AllocatePage() {
   const page_id_t next_page_id = next_page_id_;

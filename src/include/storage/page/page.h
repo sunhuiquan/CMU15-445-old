@@ -66,6 +66,23 @@ class Page {
   /** Sets the page LSN. */
   inline void SetLSN(lsn_t lsn) { memcpy(GetData() + OFFSET_LSN, &lsn, sizeof(lsn_t)); }
 
+  /** Increase the pin count. */
+  inline void IncreasePinCount() { ++pin_count_; }
+
+  /** Decrease the pin count. */
+  inline void DecreasePinCount() { --pin_count_; }
+
+  /** Set dirty bit */
+  inline void SetDirty() { is_dirty_ = true; }
+
+  /** Clear page */
+  inline void ClearPage() {
+    ResetMemory();
+    pin_count_ = 0;
+    page_id_ = INVALID_PAGE_ID;
+    is_dirty_ = false;
+  }
+
  protected:
   static_assert(sizeof(page_id_t) == 4);
   static_assert(sizeof(lsn_t) == 4);
