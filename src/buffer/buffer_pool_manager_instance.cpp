@@ -14,6 +14,8 @@
 
 #include "common/macros.h"
 
+#include "common/logger.h"  // d (debug notice)
+
 namespace bustub {
 
 BufferPoolManagerInstance::BufferPoolManagerInstance(size_t pool_size, DiskManager *disk_manager,
@@ -88,7 +90,9 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
     }
   }
   pages_[frame_id].ClearPage();  // 初始化清零
-  *page_id = AllocatePage();     // 获取 page_id
+  pages_[frame_id].IncreasePinCount();
+
+  *page_id = AllocatePage();  // 获取 page_id
   page_table_[*page_id] = frame_id;
   pages_[frame_id].page_id_ = *page_id;
   return &pages_[frame_id];
@@ -112,9 +116,8 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   }
 
   page_id_t new_page_id;
-  Page *new_page = NewPgImp(&new_page_id);
+  Page *new_page = NewPgImp(&new_page_id);  // 这里面已经 IncreasePinCount，因为单纯的 NewPage 也要 Pin，避免 Pin 两次
   if (!new_page) return nullptr;
-  new_page->IncreasePinCount();
   disk_manager_->ReadPage(new_page_id, new_page->GetData());
 
   return new_page;
