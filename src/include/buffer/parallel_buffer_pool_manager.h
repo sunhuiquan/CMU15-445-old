@@ -93,5 +93,11 @@ class ParallelBufferPoolManager : public BufferPoolManager {
 
   /** Number of instances. */
   size_t num_instances_;
+
+  /** BPMI index to allocate new page. */
+  int alloc_index;
+
+  /** Protect alloc_index */
+  std::mutex mutex;
 };
 }  // namespace bustub

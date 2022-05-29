@@ -20,14 +20,14 @@ ParallelBufferPoolManager::ParallelBufferPoolManager(size_t num_instances, size_
   alloc_index = 0;
   num_instances_ = num_instances;
   instaces_ = new BufferPoolManagerInstance *[num_instances];
-  for (int i = 0; i < num_instances; ++i) {
+  for (size_t i = 0; i < num_instances; ++i) {
     instaces_[i] = new BufferPoolManagerInstance(pool_size, num_instances, i, disk_manager, log_manager);
   }
 }
 
 // Update constructor to destruct all BufferPoolManagerInstances and deallocate any associated memory
 ParallelBufferPoolManager::~ParallelBufferPoolManager() {
-  for (int i = 0; i < num_instances_; ++i) {
+  for (size_t i = 0; i < num_instances_; ++i) {
     delete instaces_[i];
   }
   delete[] instaces_;
@@ -36,7 +36,7 @@ ParallelBufferPoolManager::~ParallelBufferPoolManager() {
 size_t ParallelBufferPoolManager::GetPoolSize() {
   // Get size of all BufferPoolManagerInstances
   size_t ret = 0;
-  for (int i = 0; i < num_instances_; ++i) {
+  for (size_t i = 0; i < num_instances_; ++i) {
     ret += instaces_[i]->GetPoolSize();
   }
   return 0;
@@ -76,8 +76,12 @@ Page *ParallelBufferPoolManager::NewPgImp(page_id_t *page_id) {
   // BufferPoolManagerInstance::AllocatePage() 是按照 BPI 在 BPM 中的 index 和 总数分配的，
   // 即 BPI 分配的 page_id 通过 BPM 的 hash 运算得到的 BPI 就是调用该函数的。
 
-  int start_index = rand() % num_instances_;
-  for (int i = 0; i < num_instances_; ++i) {
+  mutex.lock();
+  int start_index = alloc_index;
+  ++alloc_index;
+  mutex.unlock();
+
+  for (size_t i = 0; i < num_instances_; ++i) {
     Page *new_page = instaces_[(start_index + i) % num_instances_]->NewPage(page_id);
     if (new_page) return new_page;
   }
@@ -92,7 +96,7 @@ bool ParallelBufferPoolManager::DeletePgImp(page_id_t page_id) {
 
 void ParallelBufferPoolManager::FlushAllPgsImp() {
   // flush all pages from all BufferPoolManagerInstances
-  for (int i = 0; i < num_instances_; ++i) instaces_[i]->FlushAllPages();
+  for (size_t i = 0; i < num_instances_; ++i) instaces_[i]->FlushAllPages();
 }
 
 }  // namespace bustub
