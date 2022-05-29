@@ -14,8 +14,6 @@
 
 #include "common/macros.h"
 
-#include "common/logger.h"
-
 namespace bustub {
 
 BufferPoolManagerInstance::BufferPoolManagerInstance(size_t pool_size, DiskManager *disk_manager,
@@ -96,10 +94,10 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
   frame_id_t frame_id = FetchFrame();
+  if (frame_id == -1) return nullptr;
   *page_id = AllocatePage();  // 获取 page_id
   page_table_[*page_id] = frame_id;
   pages_[frame_id].page_id_ = *page_id;
-  LOG_DEBUG("NewPgImp: %d\n", *page_id);
   return &pages_[frame_id];
 }
 
@@ -121,8 +119,10 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   }
 
   frame_id_t frame_id = FetchFrame();
+  if (frame_id == -1) return nullptr;
   pages_[frame_id].page_id_ = page_id;
   page_table_[page_id] = frame_id;
+  disk_manager_->ReadPage(page_id, pages_[frame_id].GetData());
   return &pages_[frame_id];
 }
 
