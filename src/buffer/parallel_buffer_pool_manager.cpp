@@ -17,10 +17,11 @@ namespace bustub {
 ParallelBufferPoolManager::ParallelBufferPoolManager(size_t num_instances, size_t pool_size, DiskManager *disk_manager,
                                                      LogManager *log_manager) {
   // Allocate and create individual BufferPoolManagerInstances
+  alloc_index = 0;
   num_instances_ = num_instances;
   instaces_ = new BufferPoolManagerInstance *[num_instances];
   for (int i = 0; i < num_instances; ++i) {
-    instaces_[i] = new BufferPoolManagerInstance(pool_size, disk_manager, log_manager);
+    instaces_[i] = new BufferPoolManagerInstance(pool_size, num_instances, i, disk_manager, log_manager);
   }
 }
 
@@ -48,17 +49,20 @@ BufferPoolManager *ParallelBufferPoolManager::GetBufferPoolManager(page_id_t pag
 
 Page *ParallelBufferPoolManager::FetchPgImp(page_id_t page_id) {
   // Fetch page for page_id from responsible BufferPoolManagerInstance
-  return nullptr;
+  BufferPoolManager *buffer_manager = GetBufferPoolManager(page_id);
+  return buffer_manager->FetchPage(page_id);
 }
 
 bool ParallelBufferPoolManager::UnpinPgImp(page_id_t page_id, bool is_dirty) {
   // Unpin page_id from responsible BufferPoolManagerInstance
-  return false;
+  BufferPoolManager *buffer_manager = GetBufferPoolManager(page_id);
+  return buffer_manager->UnpinPage(page_id, is_dirty);
 }
 
 bool ParallelBufferPoolManager::FlushPgImp(page_id_t page_id) {
   // Flush page_id from responsible BufferPoolManagerInstance
-  return false;
+  BufferPoolManager *buffer_manager = GetBufferPoolManager(page_id);
+  return buffer_manager->FlushPage(page_id);
 }
 
 Page *ParallelBufferPoolManager::NewPgImp(page_id_t *page_id) {
@@ -68,16 +72,27 @@ Page *ParallelBufferPoolManager::NewPgImp(page_id_t *page_id) {
   // starting index and return nullptr
   // 2.   Bump the starting index (mod number of instances) to start search at a different BPMI each time this function
   // is called
+
+  // BufferPoolManagerInstance::AllocatePage() 是按照 BPI 在 BPM 中的 index 和 总数分配的，
+  // 即 BPI 分配的 page_id 通过 BPM 的 hash 运算得到的 BPI 就是调用该函数的。
+
+  int start_index = rand() % num_instances_;
+  for (int i = 0; i < num_instances_; ++i) {
+    Page *new_page = instaces_[(start_index + i) % num_instances_]->NewPage(page_id);
+    if (new_page) return new_page;
+  }
   return nullptr;
 }
 
 bool ParallelBufferPoolManager::DeletePgImp(page_id_t page_id) {
   // Delete page_id from responsible BufferPoolManagerInstance
-  return false;
+  BufferPoolManager *buffer_manager = GetBufferPoolManager(page_id);
+  return buffer_manager->DeletePage(page_id);
 }
 
 void ParallelBufferPoolManager::FlushAllPgsImp() {
   // flush all pages from all BufferPoolManagerInstances
+  for (int i = 0; i < num_instances_; ++i) instaces_[i]->FlushAllPages();
 }
 
 }  // namespace bustub
