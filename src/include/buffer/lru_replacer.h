@@ -14,7 +14,6 @@
 
 #include <list>
 #include <mutex>  // NOLINT
-#include <mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>

@@ -17,7 +17,7 @@ namespace bustub {
 ParallelBufferPoolManager::ParallelBufferPoolManager(size_t num_instances, size_t pool_size, DiskManager *disk_manager,
                                                      LogManager *log_manager) {
   // Allocate and create individual BufferPoolManagerInstances
-  alloc_index = 0;
+  alloc_index_ = 0;
   num_instances_ = num_instances;
   instaces_ = new BufferPoolManagerInstance *[num_instances];
   for (size_t i = 0; i < num_instances; ++i) {
@@ -76,14 +76,16 @@ Page *ParallelBufferPoolManager::NewPgImp(page_id_t *page_id) {
   // BufferPoolManagerInstance::AllocatePage() 是按照 BPI 在 BPM 中的 index 和 总数分配的，
   // 即 BPI 分配的 page_id 通过 BPM 的 hash 运算得到的 BPI 就是调用该函数的。
 
-  mutex.lock();
-  int start_index = alloc_index;
-  ++alloc_index;
-  mutex.unlock();
+  mutex_.lock();
+  int start_index = alloc_index_;
+  ++alloc_index_;
+  mutex_.unlock();
 
   for (size_t i = 0; i < num_instances_; ++i) {
     Page *new_page = instaces_[(start_index + i) % num_instances_]->NewPage(page_id);
-    if (new_page) return new_page;
+    if (new_page != nullptr) {
+      return new_page;
+    }
   }
   return nullptr;
 }
@@ -96,7 +98,9 @@ bool ParallelBufferPoolManager::DeletePgImp(page_id_t page_id) {
 
 void ParallelBufferPoolManager::FlushAllPgsImp() {
   // flush all pages from all BufferPoolManagerInstances
-  for (size_t i = 0; i < num_instances_; ++i) instaces_[i]->FlushAllPages();
+  for (size_t i = 0; i < num_instances_; ++i) {
+    instaces_[i]->FlushAllPages();
+  }
 }
 
 }  // namespace bustub

@@ -56,8 +56,9 @@ bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
     return false;  // 无效 page_id 或未在 page_table_ 中跟踪
   }
 
-  if (pages_[page_table_[page_id]].IsDirty())  // 脏页，写回磁盘
+  if (pages_[page_table_[page_id]].IsDirty()) {  // 脏页，写回磁盘
     disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
+  }
   latch_.unlock();
   return true;
 }
@@ -81,11 +82,11 @@ frame_id_t BufferPoolManagerInstance::FetchFrame() {
     if (!replacer_->Victim(&frame_id)) {
       latch_.unlock();
       return -1;
-    } else {
-      page_table_.erase(pages_[frame_id].GetPageId());
-      if (pages_[frame_id].IsDirty()) {
-        disk_manager_->WritePage(pages_[frame_id].GetPageId(), pages_[frame_id].GetData());
-      }
+    }
+
+    page_table_.erase(pages_[frame_id].GetPageId());
+    if (pages_[frame_id].IsDirty()) {
+      disk_manager_->WritePage(pages_[frame_id].GetPageId(), pages_[frame_id].GetData());
     }
   }
   pages_[frame_id].ClearPage();  // 初始化清零
@@ -101,7 +102,9 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
   frame_id_t frame_id = FetchFrame();
-  if (frame_id == -1) return nullptr;
+  if (frame_id == -1) {
+    return nullptr;
+  }
 
   latch_.lock();
   *page_id = AllocatePage();  // 获取 page_id
@@ -120,7 +123,9 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   // 3.     Delete R from the page table and insert P.
   // 4.     Update P's metadata, read in the page content from disk, and then return a pointer to P.
 
-  if (page_id == INVALID_PAGE_ID) return nullptr;
+  if (page_id == INVALID_PAGE_ID) {
+    return nullptr;
+  }
 
   latch_.lock();
   if (page_table_.find(page_id) != page_table_.end()) {
@@ -132,7 +137,9 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   latch_.unlock();
 
   frame_id_t frame_id = FetchFrame();
-  if (frame_id == -1) return nullptr;
+  if (frame_id == -1) {
+    return nullptr;
+  }
 
   latch_.lock();
   pages_[frame_id].page_id_ = page_id;
@@ -150,15 +157,18 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   // 3.   Otherwise, P can be deleted. Remove P from the page table, reset its metadata and return it to the free list.
 
   latch_.lock();
-  if (page_table_.find(page_id) == page_table_.end()) return true;
+  if (page_table_.find(page_id) == page_table_.end()) {
+    return true;
+  }
   Page &page = pages_[page_table_[page_id]];
   if (page.GetPinCount() != 0) {
     latch_.unlock();
     return false;
   }
 
-  if (pages_[page_table_[page_id]].IsDirty())
+  if (pages_[page_table_[page_id]].IsDirty()) {
     disk_manager_->WritePage(pages_[page_table_[page_id]].GetPageId(), pages_[page_table_[page_id]].GetData());
+  }
 
   free_list_.push_back(page_table_[page_id]);
   page_table_.erase(page_id);
@@ -181,8 +191,12 @@ bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
   }
 
   --page.pin_count_;
-  if (is_dirty) page.is_dirty_ = true;
-  if (!page.GetPinCount()) replacer_->Unpin(page_table_[page_id]);
+  if (is_dirty) {
+    page.is_dirty_ = true;
+  }
+  if (page.GetPinCount() == 0) {
+    replacer_->Unpin(page_table_[page_id]);
+  }
   latch_.unlock();
   return true;
 }

@@ -34,7 +34,7 @@ bool LRUReplacer::Victim(frame_id_t *frame_id) {
 
 void LRUReplacer::Pin(frame_id_t frame_id) {
   replacer_mutex_.lock();
-  if (id_map_.count(frame_id)) {
+  if (id_map_.find(frame_id) != id_map_.end()) {
     id_list_.erase(id_map_[frame_id]);
     id_map_.erase(frame_id);
   }
@@ -49,7 +49,7 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
     id_map_.erase(id);
   }
 
-  if (!id_map_.count(frame_id)) {
+  if (id_map_.find(frame_id) == id_map_.end()) {
     id_list_.push_front(frame_id);
     id_map_[frame_id] = id_list_.cbegin();
   }
