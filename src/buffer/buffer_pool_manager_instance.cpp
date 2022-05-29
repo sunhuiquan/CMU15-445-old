@@ -14,6 +14,8 @@
 
 #include "common/macros.h"
 
+#include "common/logger.h"
+
 namespace bustub {
 
 BufferPoolManagerInstance::BufferPoolManagerInstance(size_t pool_size, DiskManager *disk_manager,
@@ -65,13 +67,7 @@ void BufferPoolManagerInstance::FlushAllPgsImp() {
   }
 }
 
-Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
-  // 0.   Make sure you call AllocatePage!
-  // 1.   If all the pages in the buffer pool are pinned, return nullptr.
-  // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
-  // 3.   Update P's metadata, zero out memory and add P to the page table.
-  // 4.   Set the page ID output parameter. Return a pointer to P.
-
+frame_id_t BufferPoolManagerInstance::FetchFrame() {
   frame_id_t frame_id = -1;
   for (const frame_id_t i : free_list_) {
     frame_id = i;
@@ -80,9 +76,8 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   }
   if (frame_id == -1) {
     if (!replacer_->Victim(&frame_id))
-      return nullptr;
+      return -1;
     else {
-      LOG_DEBUG("pagetable: %d\n", pages_[frame_id].GetPageId());
       page_table_.erase(pages_[frame_id].GetPageId());
       if (pages_[frame_id].IsDirty()) {
         disk_manager_->WritePage(pages_[frame_id].GetPageId(), pages_[frame_id].GetData());
@@ -90,11 +85,21 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
     }
   }
   pages_[frame_id].ClearPage();  // 初始化清零
-  pages_[frame_id].IncreasePinCount();
+  ++pages_[frame_id].pin_count_;
+  return frame_id;
+}
 
+Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
+  // 0.   Make sure you call AllocatePage!
+  // 1.   If all the pages in the buffer pool are pinned, return nullptr.
+  // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
+  // 3.   Update P's metadata, zero out memory and add P to the page table.
+  // 4.   Set the page ID output parameter. Return a pointer to P.
+  frame_id_t frame_id = FetchFrame();
   *page_id = AllocatePage();  // 获取 page_id
   page_table_[*page_id] = frame_id;
   pages_[frame_id].page_id_ = *page_id;
+  LOG_DEBUG("NewPgImp: %d\n", *page_id);
   return &pages_[frame_id];
 }
 
@@ -111,18 +116,14 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
 
   if (page_table_.find(page_id) != page_table_.end()) {
     replacer_->Pin(page_table_[page_id]);
-    pages_[page_table_[page_id]].IncreasePinCount();
+    ++pages_[page_table_[page_id]].pin_count_;
     return &pages_[page_table_[page_id]];
   }
 
-  //   LOG_DEBUG("fetch page_id: %d\n", page_id);
-
-  page_id_t new_page_id;
-  Page *new_page = NewPgImp(&new_page_id);  // 这里面已经 IncreasePinCount，因为单纯的 NewPage 也要 Pin，避免 Pin 两次
-  if (!new_page) return nullptr;
-  disk_manager_->ReadPage(page_id, new_page->GetData());
-
-  return new_page;
+  frame_id_t frame_id = FetchFrame();
+  pages_[frame_id].page_id_ = page_id;
+  page_table_[page_id] = frame_id;
+  return &pages_[frame_id];
 }
 
 bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
@@ -153,8 +154,8 @@ bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
   Page &page = pages_[page_table_[page_id]];
   if (page.GetPinCount() <= 0) return false;
 
-  page.DecreasePinCount();
-  if (is_dirty) page.SetDirty();
+  --page.pin_count_;
+  if (is_dirty) page.is_dirty_ = true;
   if (!page.GetPinCount()) replacer_->Unpin(page_table_[page_id]);
   return true;
 }
