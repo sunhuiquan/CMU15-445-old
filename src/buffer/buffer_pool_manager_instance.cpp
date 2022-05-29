@@ -49,12 +49,16 @@ BufferPoolManagerInstance::~BufferPoolManagerInstance() {
 
 bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
-
-  if (page_id == INVALID_PAGE_ID || page_table_.find(page_id) == page_table_.end())
+  latch_.lock();
+  // 保护 page——table_，避免 page_table_ 获取到了 frame_id，但在随即的使用前该 frame_id 已经被从 page_table_ 删除
+  if (page_id == INVALID_PAGE_ID || page_table_.find(page_id) == page_table_.end()) {
+    latch_.unlock();
     return false;  // 无效 page_id 或未在 page_table_ 中跟踪
+  }
 
   if (pages_[page_table_[page_id]].IsDirty())  // 脏页，写回磁盘
     disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
+  latch_.unlock();
   return true;
 }
 
@@ -66,6 +70,7 @@ void BufferPoolManagerInstance::FlushAllPgsImp() {
 }
 
 frame_id_t BufferPoolManagerInstance::FetchFrame() {
+  latch_.lock();  // 保护 page_table_ 和 pages_，同时避免获取到同一个 frame_id
   frame_id_t frame_id = -1;
   for (const frame_id_t i : free_list_) {
     frame_id = i;
@@ -73,9 +78,10 @@ frame_id_t BufferPoolManagerInstance::FetchFrame() {
     break;
   }
   if (frame_id == -1) {
-    if (!replacer_->Victim(&frame_id))
+    if (!replacer_->Victim(&frame_id)) {
+      latch_.unlock();
       return -1;
-    else {
+    } else {
       page_table_.erase(pages_[frame_id].GetPageId());
       if (pages_[frame_id].IsDirty()) {
         disk_manager_->WritePage(pages_[frame_id].GetPageId(), pages_[frame_id].GetData());
@@ -84,6 +90,7 @@ frame_id_t BufferPoolManagerInstance::FetchFrame() {
   }
   pages_[frame_id].ClearPage();  // 初始化清零
   ++pages_[frame_id].pin_count_;
+  latch_.unlock();
   return frame_id;
 }
 
@@ -95,9 +102,12 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   // 4.   Set the page ID output parameter. Return a pointer to P.
   frame_id_t frame_id = FetchFrame();
   if (frame_id == -1) return nullptr;
+
+  latch_.lock();
   *page_id = AllocatePage();  // 获取 page_id
   page_table_[*page_id] = frame_id;
   pages_[frame_id].page_id_ = *page_id;
+  latch_.unlock();
   return &pages_[frame_id];
 }
 
@@ -112,17 +122,23 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
 
   if (page_id == INVALID_PAGE_ID) return nullptr;
 
+  latch_.lock();
   if (page_table_.find(page_id) != page_table_.end()) {
     replacer_->Pin(page_table_[page_id]);
     ++pages_[page_table_[page_id]].pin_count_;
+    latch_.unlock();
     return &pages_[page_table_[page_id]];
   }
+  latch_.unlock();
 
   frame_id_t frame_id = FetchFrame();
   if (frame_id == -1) return nullptr;
+
+  latch_.lock();
   pages_[frame_id].page_id_ = page_id;
   page_table_[page_id] = frame_id;
   disk_manager_->ReadPage(page_id, pages_[frame_id].GetData());
+  latch_.unlock();
   return &pages_[frame_id];
 }
 
@@ -133,30 +149,41 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   // 2.   If P exists, but has a non-zero pin-count, return false. Someone is using the page.
   // 3.   Otherwise, P can be deleted. Remove P from the page table, reset its metadata and return it to the free list.
 
+  latch_.lock();
   if (page_table_.find(page_id) == page_table_.end()) return true;
   Page &page = pages_[page_table_[page_id]];
-  if (page.GetPinCount() != 0) return false;
+  if (page.GetPinCount() != 0) {
+    latch_.unlock();
+    return false;
+  }
 
   if (pages_[page_table_[page_id]].IsDirty())
     disk_manager_->WritePage(pages_[page_table_[page_id]].GetPageId(), pages_[page_table_[page_id]].GetData());
 
   free_list_.push_back(page_table_[page_id]);
   page_table_.erase(page_id);
-
   // 不用清空，因为 NewPgImp 新分配时会自动清空
-
   DeallocatePage(page_id);
+  latch_.unlock();
   return true;
 }
 
 bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
-  if (page_table_.find(page_id) == page_table_.end()) return true;
+  latch_.lock();
+  if (page_table_.find(page_id) == page_table_.end()) {
+    latch_.unlock();
+    return true;
+  }
   Page &page = pages_[page_table_[page_id]];
-  if (page.GetPinCount() <= 0) return false;
+  if (page.GetPinCount() <= 0) {
+    latch_.unlock();
+    return false;
+  }
 
   --page.pin_count_;
   if (is_dirty) page.is_dirty_ = true;
   if (!page.GetPinCount()) replacer_->Unpin(page_table_[page_id]);
+  latch_.unlock();
   return true;
 }
 
