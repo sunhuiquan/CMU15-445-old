@@ -72,25 +72,24 @@ void BufferPoolManagerInstance::FlushAllPgsImp() {
 
 frame_id_t BufferPoolManagerInstance::FetchFrame() {
   latch_.lock();  // 保护 page_table_ 和 pages_，同时避免获取到同一个 frame_id
-  frame_id_t frame_id = -1;
-  for (const frame_id_t i : free_list_) {
-    frame_id = i;
-    free_list_.remove(i);
-    break;
-  }
-  if (frame_id == -1) {
+  frame_id_t frame_id;
+  if (!free_list_.empty()) {
+    frame_id = free_list_.back();
+    free_list_.pop_back();
+  } else {
     if (!replacer_->Victim(&frame_id)) {
-      latch_.unlock();
       return -1;
     }
-
-    page_table_.erase(pages_[frame_id].GetPageId());
     if (pages_[frame_id].IsDirty()) {
       disk_manager_->WritePage(pages_[frame_id].GetPageId(), pages_[frame_id].GetData());
     }
+    page_table_.erase(pages_[frame_id].page_id_);
   }
-  pages_[frame_id].ClearPage();  // 初始化清零
-  ++pages_[frame_id].pin_count_;
+
+  // 初始化这个新分配的 frame
+  pages_[frame_id].ResetMemory();
+  pages_[frame_id].pin_count_ = 1;
+  pages_[frame_id].is_dirty_ = false;
   latch_.unlock();
   return frame_id;
 }
@@ -110,6 +109,7 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   *page_id = AllocatePage();  // 获取 page_id
   page_table_[*page_id] = frame_id;
   pages_[frame_id].page_id_ = *page_id;
+  disk_manager_->WritePage(pages_[frame_id].page_id_, pages_[frame_id].data_);  // 初始化磁盘中对应 page_id 的页
   latch_.unlock();
   return &pages_[frame_id];
 }
