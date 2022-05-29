@@ -78,6 +78,7 @@ frame_id_t BufferPoolManagerInstance::FetchFrame() {
     free_list_.pop_back();
   } else {
     if (!replacer_->Victim(&frame_id)) {
+      latch_.unlock();
       return -1;
     }
     if (pages_[frame_id].IsDirty()) {
