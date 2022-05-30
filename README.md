@@ -58,4 +58,18 @@ to do
 
 ### 实现
 
+1. lru_replacer 这个我们用双向链表 (list) 和哈希表 (unordered_map)，其中哈希表根据 frame_id 映射 list 的迭代器来定位元素，这样我们 Unpin 和 Victim 的复杂度都是 O(1)，具体思路可以看 Leetcode 146 题的题解。
+2. buffer_pool_manager_instance 实现一个 buffer pool 实例，注意 page_id 可以用来定位磁盘文件中的物理块的，这部分映射不在我们这一层，只需要理解这点就行。
+3. buffer_pool_manager_instance 实现不难，就是注意下和 lru_replacer 的关系即可，NewPgImp 分配后返回新分配的 frame 的地址，显然这个地址是会被调用者用的，所以是 Pin 住的；FetchPgImg 如果在 page_table_ 中就要增加 pin_count_，如果原来 pin_count_ 为 0 那么要 lru_replacer Pin 操作，如果是要 Victim，那么默认 Pin 住，类似 NewPgImg；UnpinPgImp 如果降到 0 要 lru_replacer UnPin 操作，加入 lru 池中；DeletePgImp 中如果 Pin 状态则无法删除，所以删除的都是 UnPin 状态的，所以 lru_placer 中也有这个 frame_id，删除后自然 lru 池中的也要删除，通过 lru_replacer 的 Pin 操作即可，功能是一样的，虽然意义不同。
+4. parallel_buffer_pool_manager 的实现非常简单，根据 page_id 计算哈希，得到应该用哪个 buffer pool 实例，然后对应的实例调用具体的请求即可。很容易发现我们实例中的实现，对于所有的 pages_ 是共用同一个锁的，因此我们的实例其实根本并行不起来，一个实例中的并发请求光加锁保证线程安全就快变成串行了(这是因为我们一个实例就一个锁，如果实现为每个 frame 都有一个锁可以实现并行。）不过这单纯是因为思路不同罢了，这里的实现虽然实例中的并发请求几乎是串行，但 parallel_buffer_pool_mangager 有多个实例，多个实例之间实现并行，这是 bustub 的思路。
+5. BufferPoolManagerInstance::AllocatePage() 是按照 buffer_pool_manager_instance 在总体中的 index 和 总数分配的，即 BPI 新分配的 page_id，经过 hash 得到的实例下标，对应的就是分配它的哪一个。
+
 ### 其他
+
+1. 一定要千万注意不要修改非提交的文件，犯了这个错 autograde 是不会给你报错信息的，只会告诉你 The autograder failed to execute correctly，我就是因为忘记我之前在 page.h 里面加了个辅助函数，麻了。
+2. DeletePgImp 要 ResetMemory，我感觉是多余的，因为 NewPageImp 会调用 ResetMemory，而 FetchPgImp 会从磁盘读取块内容覆盖，但是 autograde 里面有关于这个的测试，不得不写。
+
+![IMG](./IMG/test1.png)
+
+![IMG](./IMG/proj1.png)
+
