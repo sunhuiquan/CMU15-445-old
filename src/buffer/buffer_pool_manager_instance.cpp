@@ -170,8 +170,9 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   free_list_.push_back(page_table_[page_id]);
   replacer_->Pin(page_table_[page_id]);  // 删除 replacer_ 中对应的映射
   pages_[page_table_[page_id]].page_id_ = INVALID_PAGE_ID;
+  pages_[page_table_[page_id]].ResetMemory();
+  pages_[page_table_[page_id]].is_dirty_ = false;
   page_table_.erase(page_id);
-  // 不用清空，因为 NewPgImp 新分配时会自动清空
   DeallocatePage(page_id);
   return true;
 }
