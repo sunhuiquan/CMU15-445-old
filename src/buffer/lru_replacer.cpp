@@ -26,7 +26,7 @@ bool LRUReplacer::Victim(frame_id_t *frame_id) {
   }
 
   *frame_id = id_list_.back();
-  id_list_.erase(id_map_[*frame_id]);
+  id_list_.pop_back();
   id_map_.erase(*frame_id);
   replacer_mutex_.unlock();
   return true;
@@ -43,7 +43,7 @@ void LRUReplacer::Pin(frame_id_t frame_id) {
 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
   replacer_mutex_.lock();
-  if (Size() == max_pages_) {  // replacer 已满
+  if (id_list_.size() == max_pages_) {  // replacer 已满
     int id = id_list_.back();
     id_list_.erase(id_map_[id]);
     id_map_.erase(id);

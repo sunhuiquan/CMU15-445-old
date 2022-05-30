@@ -82,12 +82,6 @@ class BufferPoolManagerInstance : public BufferPoolManager {
   bool FlushPgImp(page_id_t page_id) override;
 
   /**
-   * Fetch a frame from buffer pool (free list or victim by lru).
-   * @return -1 if no frame could be fetched, otherwise a frame_id
-   */
-  frame_id_t FetchFrame();
-
-  /**
    * Creates a new page in the buffer pool.
    * @param[out] page_id id of created page
    * @return nullptr if no new pages could be created, otherwise pointer to new page

@@ -51,13 +51,14 @@ bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
   latch_.lock();
   // 保护 page——table_，避免 page_table_ 获取到了 frame_id，但在随即的使用前该 frame_id 已经被从 page_table_ 删除
-  if (page_id == INVALID_PAGE_ID || page_table_.find(page_id) == page_table_.end()) {
+  if (page_table_.find(page_id) == page_table_.end()) {
     latch_.unlock();
     return false;  // 无效 page_id 或未在 page_table_ 中跟踪
   }
 
   if (pages_[page_table_[page_id]].IsDirty()) {  // 脏页，写回磁盘
     disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
+    pages_[page_table_[page_id]].is_dirty_ = false;  // 已写回数据，此时内存里的数据和磁盘上的一样，所以非脏页
   }
   latch_.unlock();
   return true;
@@ -70,8 +71,15 @@ void BufferPoolManagerInstance::FlushAllPgsImp() {
   }
 }
 
-frame_id_t BufferPoolManagerInstance::FetchFrame() {
-  latch_.lock();  // 保护 page_table_ 和 pages_，同时避免获取到同一个 frame_id
+Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
+  // 0.   Make sure you call AllocatePage!
+  // 1.   If all the pages in the buffer pool are pinned, return nullptr.
+  // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
+  // 3.   Update P's metadata, zero out memory and add P to the page table.
+  // 4.   Set the page ID output parameter. Return a pointer to P.
+
+  latch_.lock();
+
   frame_id_t frame_id;
   if (!free_list_.empty()) {
     frame_id = free_list_.back();
@@ -79,7 +87,7 @@ frame_id_t BufferPoolManagerInstance::FetchFrame() {
   } else {
     if (!replacer_->Victim(&frame_id)) {
       latch_.unlock();
-      return -1;
+      return nullptr;
     }
     if (pages_[frame_id].IsDirty()) {
       disk_manager_->WritePage(pages_[frame_id].GetPageId(), pages_[frame_id].GetData());
@@ -91,22 +99,7 @@ frame_id_t BufferPoolManagerInstance::FetchFrame() {
   pages_[frame_id].ResetMemory();
   pages_[frame_id].pin_count_ = 1;
   pages_[frame_id].is_dirty_ = false;
-  latch_.unlock();
-  return frame_id;
-}
 
-Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
-  // 0.   Make sure you call AllocatePage!
-  // 1.   If all the pages in the buffer pool are pinned, return nullptr.
-  // 2.   Pick a victim page P from either the free list or the replacer. Always pick from the free list first.
-  // 3.   Update P's metadata, zero out memory and add P to the page table.
-  // 4.   Set the page ID output parameter. Return a pointer to P.
-  frame_id_t frame_id = FetchFrame();
-  if (frame_id == -1) {
-    return nullptr;
-  }
-
-  latch_.lock();
   *page_id = AllocatePage();  // 获取 page_id
   page_table_[*page_id] = frame_id;
   pages_[frame_id].page_id_ = *page_id;
@@ -135,14 +128,25 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
     latch_.unlock();
     return &pages_[page_table_[page_id]];
   }
-  latch_.unlock();
 
-  frame_id_t frame_id = FetchFrame();
-  if (frame_id == -1) {
-    return nullptr;
+  frame_id_t frame_id;
+  if (!free_list_.empty()) {
+    frame_id = free_list_.back();
+    free_list_.pop_back();
+  } else {
+    if (!replacer_->Victim(&frame_id)) {
+      latch_.unlock();
+      return nullptr;
+    }
+    if (pages_[frame_id].IsDirty()) {
+      disk_manager_->WritePage(pages_[frame_id].GetPageId(), pages_[frame_id].GetData());
+    }
+    page_table_.erase(pages_[frame_id].page_id_);
   }
 
-  latch_.lock();
+  // 初始化这个新分配的 frame
+  pages_[frame_id].pin_count_ = 1;
+  pages_[frame_id].is_dirty_ = false;
   pages_[frame_id].page_id_ = page_id;
   page_table_[page_id] = frame_id;
   disk_manager_->ReadPage(page_id, pages_[frame_id].GetData());

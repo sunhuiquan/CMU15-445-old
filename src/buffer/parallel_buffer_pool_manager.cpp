@@ -18,6 +18,7 @@ ParallelBufferPoolManager::ParallelBufferPoolManager(size_t num_instances, size_
                                                      LogManager *log_manager) {
   // Allocate and create individual BufferPoolManagerInstances
   alloc_index_ = 0;
+  pool_size_ = pool_size;
   num_instances_ = num_instances;
   instaces_ = new BufferPoolManagerInstance *[num_instances];
   for (size_t i = 0; i < num_instances; ++i) {
@@ -35,11 +36,7 @@ ParallelBufferPoolManager::~ParallelBufferPoolManager() {
 
 size_t ParallelBufferPoolManager::GetPoolSize() {
   // Get size of all BufferPoolManagerInstances
-  size_t ret = 0;
-  for (size_t i = 0; i < num_instances_; ++i) {
-    ret += instaces_[i]->GetPoolSize();
-  }
-  return 0;
+  return num_instances_ * pool_size_;
 }
 
 BufferPoolManager *ParallelBufferPoolManager::GetBufferPoolManager(page_id_t page_id) {
@@ -78,7 +75,7 @@ Page *ParallelBufferPoolManager::NewPgImp(page_id_t *page_id) {
 
   mutex_.lock();
   int start_index = alloc_index_;
-  ++alloc_index_;
+  alloc_index_ = (alloc_index_ + 1) % static_cast<int>(num_instances_);
   mutex_.unlock();
 
   for (size_t i = 0; i < num_instances_; ++i) {

@@ -99,5 +99,8 @@ class ParallelBufferPoolManager : public BufferPoolManager {
 
   /** Protect alloc_index */
   std::mutex mutex_;
+
+  /** Buffer pool size.*/
+  size_t pool_size_;
 };
 }  // namespace bustub
