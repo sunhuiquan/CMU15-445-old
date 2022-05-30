@@ -19,30 +19,27 @@ LRUReplacer::LRUReplacer(size_t num_pages) { max_pages_ = num_pages; }
 LRUReplacer::~LRUReplacer() = default;
 
 bool LRUReplacer::Victim(frame_id_t *frame_id) {
-  replacer_mutex_.lock();
+  std::lock_guard<std::mutex> lock(replacer_mutex_);
   if (id_list_.empty()) {
-    replacer_mutex_.unlock();
     return false;
   }
 
   *frame_id = id_list_.back();
   id_list_.pop_back();
   id_map_.erase(*frame_id);
-  replacer_mutex_.unlock();
   return true;
 }
 
 void LRUReplacer::Pin(frame_id_t frame_id) {
-  replacer_mutex_.lock();
+  std::lock_guard<std::mutex> lock(replacer_mutex_);
   if (id_map_.find(frame_id) != id_map_.end()) {
     id_list_.erase(id_map_[frame_id]);
     id_map_.erase(frame_id);
   }
-  replacer_mutex_.unlock();
 }
 
 void LRUReplacer::Unpin(frame_id_t frame_id) {
-  replacer_mutex_.lock();
+  std::lock_guard<std::mutex> lock(replacer_mutex_);
   if (id_list_.size() == max_pages_) {  // replacer 已满
     int id = id_list_.back();
     id_list_.erase(id_map_[id]);
@@ -53,7 +50,6 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
     id_list_.push_front(frame_id);
     id_map_[frame_id] = id_list_.cbegin();
   }
-  replacer_mutex_.unlock();
 }
 
 size_t LRUReplacer::Size() { return id_list_.size(); }
