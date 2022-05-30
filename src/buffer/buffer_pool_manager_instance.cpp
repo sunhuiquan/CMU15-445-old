@@ -49,10 +49,9 @@ BufferPoolManagerInstance::~BufferPoolManagerInstance() {
 
 bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
   // Make sure you call DiskManager::WritePage!
-  latch_.lock();
+  std::lock_guard<std::mutex> lock(latch_);
   // 保护 page——table_，避免 page_table_ 获取到了 frame_id，但在随即的使用前该 frame_id 已经被从 page_table_ 删除
   if (page_table_.find(page_id) == page_table_.end()) {
-    latch_.unlock();
     return false;  // 无效 page_id 或未在 page_table_ 中跟踪
   }
 
@@ -60,7 +59,6 @@ bool BufferPoolManagerInstance::FlushPgImp(page_id_t page_id) {
     disk_manager_->WritePage(page_id, pages_[page_table_[page_id]].GetData());
     pages_[page_table_[page_id]].is_dirty_ = false;  // 已写回数据，此时内存里的数据和磁盘上的一样，所以非脏页
   }
-  latch_.unlock();
   return true;
 }
 
@@ -78,14 +76,13 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   // 3.   Update P's metadata, zero out memory and add P to the page table.
   // 4.   Set the page ID output parameter. Return a pointer to P.
 
-  latch_.lock();
+  std::lock_guard<std::mutex> lock(latch_);
   frame_id_t frame_id;
   if (!free_list_.empty()) {
     frame_id = free_list_.back();
     free_list_.pop_back();
   } else {
     if (!replacer_->Victim(&frame_id)) {
-      latch_.unlock();
       return nullptr;
     }
     if (pages_[frame_id].IsDirty()) {
@@ -103,7 +100,6 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   page_table_[*page_id] = frame_id;
   pages_[frame_id].page_id_ = *page_id;
   disk_manager_->WritePage(pages_[frame_id].page_id_, pages_[frame_id].data_);  // 初始化磁盘中对应 page_id 的页
-  latch_.unlock();
   return &pages_[frame_id];
 }
 
@@ -116,17 +112,15 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   // 3.     Delete R from the page table and insert P.
   // 4.     Update P's metadata, read in the page content from disk, and then return a pointer to P.
 
+  std::lock_guard<std::mutex> lock(latch_);
   if (page_id == INVALID_PAGE_ID) {
     return nullptr;
   }
-
-  latch_.lock();
   if (page_table_.find(page_id) != page_table_.end()) {
     if (pages_[page_table_[page_id]].pin_count_ == 0) {
       replacer_->Pin(page_table_[page_id]);
     }
     ++pages_[page_table_[page_id]].pin_count_;
-    latch_.unlock();
     return &pages_[page_table_[page_id]];
   }
 
@@ -136,7 +130,6 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
     free_list_.pop_back();
   } else {
     if (!replacer_->Victim(&frame_id)) {
-      latch_.unlock();
       return nullptr;
     }
     if (pages_[frame_id].IsDirty()) {
@@ -151,7 +144,6 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
   pages_[frame_id].page_id_ = page_id;
   page_table_[page_id] = frame_id;
   disk_manager_->ReadPage(page_id, pages_[frame_id].GetData());
-  latch_.unlock();
   return &pages_[frame_id];
 }
 
@@ -162,13 +154,12 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   // 2.   If P exists, but has a non-zero pin-count, return false. Someone is using the page.
   // 3.   Otherwise, P can be deleted. Remove P from the page table, reset its metadata and return it to the free list.
 
-  latch_.lock();
+  std::lock_guard<std::mutex> lock(latch_);
   if (page_table_.find(page_id) == page_table_.end()) {
     return true;
   }
 
   if (pages_[page_table_[page_id]].GetPinCount() != 0) {  // Pin 状态不可删除
-    latch_.unlock();
     return false;
   }
 
@@ -182,19 +173,15 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   page_table_.erase(page_id);
   // 不用清空，因为 NewPgImp 新分配时会自动清空
   DeallocatePage(page_id);
-  latch_.unlock();
   return true;
 }
-
 bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
-  latch_.lock();
+  std::lock_guard<std::mutex> lock(latch_);
   if (page_table_.find(page_id) == page_table_.end()) {
-    latch_.unlock();
     return true;
   }
   Page &page = pages_[page_table_[page_id]];
   if (page.GetPinCount() <= 0) {
-    latch_.unlock();
     return false;
   }
 
@@ -205,7 +192,6 @@ bool BufferPoolManagerInstance::UnpinPgImp(page_id_t page_id, bool is_dirty) {
   if (page.GetPinCount() == 0) {
     replacer_->Unpin(page_table_[page_id]);
   }
-  latch_.unlock();
   return true;
 }
 
