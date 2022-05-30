@@ -79,7 +79,6 @@ Page *BufferPoolManagerInstance::NewPgImp(page_id_t *page_id) {
   // 4.   Set the page ID output parameter. Return a pointer to P.
 
   latch_.lock();
-
   frame_id_t frame_id;
   if (!free_list_.empty()) {
     frame_id = free_list_.back();
@@ -123,7 +122,9 @@ Page *BufferPoolManagerInstance::FetchPgImp(page_id_t page_id) {
 
   latch_.lock();
   if (page_table_.find(page_id) != page_table_.end()) {
-    replacer_->Pin(page_table_[page_id]);
+    if (pages_[page_table_[page_id]].pin_count_ == 0) {
+      replacer_->Pin(page_table_[page_id]);
+    }
     ++pages_[page_table_[page_id]].pin_count_;
     latch_.unlock();
     return &pages_[page_table_[page_id]];
@@ -165,8 +166,8 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   if (page_table_.find(page_id) == page_table_.end()) {
     return true;
   }
-  Page &page = pages_[page_table_[page_id]];
-  if (page.GetPinCount() != 0) {
+
+  if (pages_[page_table_[page_id]].GetPinCount() != 0) {  // Pin 状态不可删除
     latch_.unlock();
     return false;
   }
@@ -176,6 +177,8 @@ bool BufferPoolManagerInstance::DeletePgImp(page_id_t page_id) {
   }
 
   free_list_.push_back(page_table_[page_id]);
+  replacer_->Pin(page_table_[page_id]);  // 删除 replacer_ 中对应的映射
+  pages_[page_table_[page_id]].page_id_ = INVALID_PAGE_ID;
   page_table_.erase(page_id);
   // 不用清空，因为 NewPgImp 新分配时会自动清空
   DeallocatePage(page_id);
