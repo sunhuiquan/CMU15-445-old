@@ -46,11 +46,11 @@ to do
 2. 因为本地测试没有测试 GEMM 函数，你可以加几个测试，如 TEST(StarterTest, GEMMTest) { // 测试代码 }
 3. 默认是 DISABLED 测试的，你需要把 test 对应测试文件(/test/primer/starter_test.cpp)里面形如 TEST(StarterTest, DISABLED_InitializationTest) 去掉 DISABLED_ 变成 TEST(StarterTest, InitializationTest) 才能开启该测试函数。
 
-![IMG](./IMG/test0.png)
+  ![IMG](./IMG/test0.png)
 
 里面第六个 GEMMTest 是我自己加的本地测试。
 
-![IMG](./IMG/project0.png)
+  ![IMG](./IMG/project0.png)
 
 ---
 
@@ -69,7 +69,8 @@ to do
 1. 一定要千万注意不要修改非提交的文件，犯了这个错 autograde 是不会给你报错信息的，只会告诉你 The autograder failed to execute correctly，我就是因为忘记我之前在 page.h 里面加了个辅助函数，麻了。
 2. DeletePgImp 要 ResetMemory，我感觉是多余的，因为 NewPageImp 会调用 ResetMemory，而 FetchPgImp 会从磁盘读取块内容覆盖，但是 autograde 里面有关于这个的测试，不得不写。
 
-![IMG](./IMG/test1.png)
+  ![IMG](./IMG/test1.png)
 
-![IMG](./IMG/proj1.png)
+  ![IMG](./IMG/proj1.png)
 
+---
