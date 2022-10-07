@@ -1,0 +1,68 @@
+q1: select CategoryName from Category order by CategoryName asc;
+
+q2: select distinct ShipName, substr(ShipName,0,instr(ShipName,'-')) from 'Order' where ShipName like '%-%' order by shipName;
+
+q3: select id, ShipCountry, case when ShipCountry = 'USA' in ('USA', 'Mexico','Canada') then 'NorthAmerica' else 'OtherPlace' end 
+from 'Order' where id >= 15445 
+order by id limit 20;
+
+q4: select CompanyName, round(cast(cnt as double) * 100 / total, 2) as percent
+from (select ShipVia, count(*) as cnt from 'Order' where ShippedDate > RequiredDate group by ShipVia) as a
+inner join (select ShipVia, count(*) as total from 'Order' group by ShipVia) as b on a.ShipVia = b.ShipVia
+inner join Shipper on a.ShipVia = id
+order by percent desc;
+
+q5: select CategoryName, count(*) as CategoryCnt, round(avg(UnitPrice),2), min(UnitPrice), max(UnitPrice), sum(UnitsOnOrder) from Product join Category on CategoryId = Category.id group by CategoryId having CategoryCnt > 10;
+
+q6: // 比答案的写的麻烦，因为大部分 sql 语法不支持 select group by 外的非聚集属性，而 sqlite 不光可以而且还会根据聚集函数选择对应的那一个，如果多个对应则选择未定义。
+select ProductName, CompanyName, ContactName
+from(
+	select * from (
+	(select aid, min(OrderDate) as MinOrderTime
+	from (select id as aid, ProductName from Product where Discontinued == 1)
+	inner join OrderDetail on aid = OrderDetail.ProductId
+	inner join 'Order' on OrderDetail.OrderId = 'Order'.id
+	inner join Customer on 'Order'.CustomerId = Customer.id group by aid) as a
+	inner join
+	(select ProductName, CompanyName, ContactName, bid, OrderDate
+	from (select id as bid, ProductName from Product where Discontinued == 1)
+	inner join OrderDetail on bid = OrderDetail.ProductId
+	inner join 'Order' on OrderDetail.OrderId = 'Order'.id
+	inner join Customer on 'Order'.CustomerId = Customer.id
+	) as b on a.aid = b.bid and a.MinOrderTime = b.OrderDate
+	)
+)
+order by ProductName; 
+
+q7:
+
+q8:
+
+q9:
+
+q10:
+
+Q7 [15 POINTS] (Q7_ORDER_LAGS):
+For the first 10 orders by CutomerId BLONP: get the Order's Id, OrderDate, previous OrderDate, and difference between the previous and current. Return results ordered by OrderDate (ascending)
+Details: The "previous" OrderDate for the first order should default to itself (lag time = 0). Use the julianday() function for date arithmetic (example).
+Use lag(expr, offset, default) for grabbing previous dates.
+Please round the lag time to the nearest hundredth, formatted like 17361|2012-09-19 12:13:21|2012-09-18 22:37:15|0.57
+
+Note: For more details on window functions, see here.
+
+Q8 [15 POINTS] (Q8_TOTAL_COST_QUARTILES):
+For each Customer, get the CompanyName, CustomerId, and "total expenditures". Output the bottom quartile of Customers, as measured by total expenditures.
+Details: Calculate expenditure using UnitPrice and Quantity (ignore Discount). Compute the quartiles for each company's total expenditures using NTILE. The bottom quartile is the 1st quartile, order them by increasing expenditure.
+Make sure your output is formatted as follows (round expenditure to nearest hundredths): Bon app|BONAP|4485708.49
+
+Note: There are orders for CustomerIds that don't appear in the Customer table. You should still consider these "Customers" and output them. If the CompanyName is missing, override the NULL to 'MISSING_NAME' using IFNULL.
+
+Q9 [15 POINTS] (Q9_YOUNGBLOOD):
+Find the youngest employee serving each Region. If a Region is not served by an employee, ignore it.
+Details: Print the Region Description, First Name, Last Name, and Birth Date. Order by Region Id.
+Your first row should look like Eastern|Steven|Buchanan|1987-03-04
+
+Q10 [15 POINTS] (Q10_CHRISTMAS):
+Concatenate the ProductNames ordered by the Company 'Queen Cozinha' on 2014-12-25.
+Details: Order the products by Id (ascending). Print a single string containing all the dup names separated by commas like Mishi Kobe Niku, NuNuCa Nuß-Nougat-Creme...
+Hint: You might find Recursive CTEs useful.
