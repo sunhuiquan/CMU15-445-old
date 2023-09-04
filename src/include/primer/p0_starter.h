@@ -115,7 +115,7 @@ class RowMatrix : public Matrix<T> {
   RowMatrix(int rows, int cols) : Matrix<T>(rows, cols) {
     data_ = new T *[rows];
     for (int i = 0; i < rows; ++i) {
-      data_[i] = new T[cols];
+      data_[i] = &this->linear_[i * cols];
     }
   }
 
@@ -147,7 +147,7 @@ class RowMatrix : public Matrix<T> {
     if (i < 0 || i >= this->rows_ || j < 0 || j >= this->cols_) {
       throw Exception(ExceptionType::OUT_OF_RANGE, "Index is out of range.");
     }
-    return this->linear_[i * this->cols_ + j];
+    return data_[i][j];
   }
 
   /**
@@ -164,7 +164,7 @@ class RowMatrix : public Matrix<T> {
     if (i < 0 || i >= this->rows_ || j < 0 || j >= this->cols_) {
       throw Exception(ExceptionType::OUT_OF_RANGE, "Index is out of range.");
     }
-    this->linear_[i * this->cols_ + j] = val;
+    data_[i][j] = val;
   }
 
   /**
@@ -184,8 +184,10 @@ class RowMatrix : public Matrix<T> {
       throw Exception(ExceptionType::OUT_OF_RANGE, "Index is out of range.");
     }
 
-    for (int i = 0; i < sz; ++i) {
-      this->linear_[i] = source[i];
+    for (int idx = 0, i = 0; i < this->rows_; ++i) {
+      for (int j = 0; j < this->cols_; ++j) {
+        data_[i][j] = source[idx++];
+      }
     }
   }
 
@@ -194,12 +196,7 @@ class RowMatrix : public Matrix<T> {
    *
    * Destroy a RowMatrix instance.
    */
-  ~RowMatrix() override {
-    for (int i = 0; i < this->rows_; ++i) {
-      delete[] data_[i];
-    }
-    delete[] data_;
-  }
+  ~RowMatrix() override { delete[] data_; }
 
  private:
   /**
