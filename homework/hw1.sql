@@ -82,4 +82,3 @@ t3 as (
 )
 select name from t3
 order by seqnum desc limit 1;
-

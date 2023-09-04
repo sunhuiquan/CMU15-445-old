@@ -2,11 +2,13 @@
 
 ## Index
 
-to do
+1. [Homework](#homework)
+1. [Lab 0 C++ Primer](#project-0-c-primer)
+1. [Lab 1 Buffer Pool](#project-1-buffer-pool)
 
-## HomeWork
+## Homework
 
-to do
+1. [HW1 SQL](./homework/hw1.sql)
 
 ## Project 0 C++ Primer
 
